@@ -3,7 +3,10 @@
 $LOCAL_LANG = Array (
 	'default' => Array (
 		'sys_workflows' => 'Workflow',
-	),
+		'cm1_title' => 'Workflow',
+		'cm1_title_activate' => 'Workflows...',
+
+		),
 	'dk' => Array (
 		'sys_workflows' => 'Arbejdsgang',
 	),

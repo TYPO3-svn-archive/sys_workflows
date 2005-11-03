@@ -10,8 +10,12 @@ CREATE TABLE sys_workflows (
   title tinytext NOT NULL,
   description text NOT NULL,
   tablename varchar(60) DEFAULT '' NOT NULL,
+  tablename_ver varchar(60) DEFAULT '' NOT NULL,
+  tablename_del varchar(60) DEFAULT '' NOT NULL,
+  tablename_move varchar(60) DEFAULT '' NOT NULL,
   working_area int(11) DEFAULT '0' NOT NULL,
   allowed_groups int(11) DEFAULT '0' NOT NULL,
+  target_groups tinyblob NOT NULL,
   review_users int(11) DEFAULT '0' NOT NULL,
   publishing_users int(11) DEFAULT '0' NOT NULL,
   final_target int(11) DEFAULT '0' NOT NULL,
@@ -23,8 +27,6 @@ CREATE TABLE sys_workflows (
   final_perms_everybody tinyint(11) DEFAULT '0' NOT NULL,
   hidden tinyint(4) DEFAULT '0' NOT NULL,
   final_set_perms tinyint(4) DEFAULT '0' NOT NULL,
-  target_groups tinyblob NOT NULL,
-  existing_record blob NOT NULL,
   PRIMARY KEY (uid),
   KEY parent (pid)
 );

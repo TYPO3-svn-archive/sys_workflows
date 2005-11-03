@@ -7,7 +7,7 @@
 $TCA['sys_workflows'] = Array (
 	'ctrl' => $TCA['sys_workflows']['ctrl'],
 	'interface' => Array (
-		'showRecordFieldList' => 'title,description,tablename,working_area,allowed_groups,review_users,final_target,final_unhide,final_set_perms'
+		'showRecordFieldList' => 'title,description,tablename,tablename_ver,tablename_del,tablename_move,allowed_groups,review_users,final_set_perms'
 	),
 	'columns' => Array (	
 		'title' => Array (
@@ -34,26 +34,51 @@ $TCA['sys_workflows'] = Array (
 			)
 		),
 		'tablename' => Array (
-			'label' => 'Table:',
+			'label' => 'Allow new instances:',
 			'config' => Array (
 				'type' => 'select',
 				'special' => 'tables',
-				'size' => '1',
-				'items' => Array(
-					Array('','')
-				)
+				'size' => '7',
+				'autoSizeMax' => '20',
+				'maxitems' => '1000',
+				'minitems' => '1',
+				'renderMode' => 'singlebox',
 			)
 		),
-		'working_area' => Array (
-			'label' => 'Draft page:',
+		'tablename_ver' => Array (
+			'label' => 'Allow new versions:',
 			'config' => Array (
-				'type' => 'group',
-				'internal_type' => 'db',
-				'allowed' => 'pages',
-				'size' => '1',
-				'maxitems' => '1',
-				'minitems' => '0',
-				'show_thumbs' => '1'
+				'type' => 'select',
+				'special' => 'tables',
+				'size' => '7',
+				'autoSizeMax' => '20',
+				'maxitems' => '1000',
+				'minitems' => '1',
+				'renderMode' => 'singlebox',
+			)
+		),
+		'tablename_del' => Array (
+			'label' => 'Allow deletions:',
+			'config' => Array (
+				'type' => 'select',
+				'special' => 'tables',
+				'size' => '7',
+				'autoSizeMax' => '20',
+				'maxitems' => '1000',
+				'minitems' => '1',
+				'renderMode' => 'singlebox',
+			)
+		),
+		'tablename_move' => Array (
+			'label' => 'Allow movement:',
+			'config' => Array (
+				'type' => 'select',
+				'special' => 'tables',
+				'size' => '7',
+				'autoSizeMax' => '20',
+				'maxitems' => '1000',
+				'minitems' => '1',
+				'renderMode' => 'singlebox',
 			)
 		),
 		'allowed_groups' => Array (
@@ -91,7 +116,7 @@ $TCA['sys_workflows'] = Array (
 			)
 		),		
 		'publishing_users' => Array (
-			'label' => 'Review users:',
+			'label' => 'Publishing users:',
 			'config' => Array (
 				'type' => 'group',
 				'internal_type' => 'db',
@@ -103,28 +128,10 @@ $TCA['sys_workflows'] = Array (
 				'show_thumbs' => '1'
 			)
 		),		
-		'final_unhide' => Array (
-			'label' => 'Unhide when finalizing:',
-			'config' => Array (
-				'type' => 'check'
-			)
-		),
 		'final_set_perms' => Array (
 			'label' => 'Set permissions when finalizing ("page" only):',
 			'config' => Array (
 				'type' => 'check'
-			)
-		),
-		'final_target' => Array (
-			'label' => 'Move to page when finalizing:',
-			'config' => Array (
-				'type' => 'group',
-				'internal_type' => 'db',
-				'allowed' => 'pages',
-				'size' => '3',
-				'maxitems' => '1',
-				'minitems' => '0',
-				'show_thumbs' => '1'
 			)
 		),
 		'final_perms_userid' => Array (
@@ -194,23 +201,11 @@ $TCA['sys_workflows'] = Array (
 				'cols' => 5
 			)
 			),
-		"existing_record" => Array (        
-			"exclude" => 1,        
-			"label" => 'Existing record',        
-			"config" => Array (
-        "type" => "group",    
-				"internal_type" => "db",    
-				"allowed" => "pages",    
-				"size" => 1,    
-				"minitems" => 0,
-				"maxitems" => 1,
-				)
-			),
-
 	),
 	'types' => Array (					
-										/*		'0' => Array('showitem' => 'hidden;;;;1-1-1,title;;;;2-2-2,description,tablename;;;;3-3-3,working_area,existing_record,allowed_groups,target_groups,review_users,--div--,final_target;;;;5-5-5,final_unhide,final_set_perms;;;;5-5-5'),*/
-		'0' => Array('showitem' => 'hidden;;;;1-1-1,title;;;;2-2-2,description,--div--;table,tablename;;;;3-3-3,working_area,existing_record,--div--;roles,allowed_groups,target_groups,review_users,publishing_users,--div--;misc,final_target;;;;5-5-5,final_unhide,final_set_perms;;;;5-5-5,final_perms_userid,final_perms_groupid,final_perms_user,final_perms_group,final_perms_everybody')
+										'1' => Array('showitem' => 'hidden;;;;1-1-1,title;;;;2-2-2,description,--div--;table,tablename;;;;3-3-3,tablename_ver,tablename_del,tablename_move,--div--;roles,allowed_groups,target_groups,review_users,publishing_users,--div--;misc,final_set_perms;;;;5-5-5,final_perms_userid,final_perms_groupid,final_perms_user,final_perms_group,final_perms_everybody'),
+		'0' => Array('showitem' => 'hidden;;;;1-1-1,title;;;;2-2-2,description,--div--;table,tablename;;;;3-3-3,tablename_ver,tablename_del,tablename_move,--div--;roles,allowed_groups,target_groups,review_users,publishing_users,--div--;misc,final_set_perms;;;;5-5-5')
+
 	)
 );
 
