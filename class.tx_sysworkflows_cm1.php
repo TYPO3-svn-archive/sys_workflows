@@ -79,12 +79,12 @@ class tx_sysworkflows_cm1 {
 		}
 		else {
 			$this->loadDefinition();
-			$actions = array('new inside','new after','version');//,'delete','move');
+			$actions = array('new inside','new after','version','delete','move');
 
 			foreach($this->wfDef->getUserWorkFlows($table) as $row) {
 				foreach($actions as $action) {
 					if($row[$action]) {					
-						$url = t3lib_extMgm::extRelPath("taskcenter").'task/index.php?SET[function]=tx_systodos&action='.$action.'&table='.$table.'&uid='.$uid.'&workflow_type=wf_'.$row['uid'];
+						$url = t3lib_extMgm::extRelPath("taskcenter").'task/index.php?SET[function]=tx_sysworkflows&action='.$action.'&table='.$table.'&uid='.$uid.'&workflow_type=wf_'.$row['uid'];
 						$localItems[] = $backRef->linkItem(
 					  $row['title'].' '.$action,
 					  $backRef->excludeIcon('<img src="'.t3lib_extMgm::extRelPath("sys_workflows").'cm1/cm_icon.gif" width="15" height="12" border=0 align=top>'),

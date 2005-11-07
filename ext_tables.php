@@ -28,7 +28,14 @@ if (TYPO3_MODE=='BE')	{
 		"path" => t3lib_extMgm::extPath($_EXTKEY)."class.tx_sysworkflows_cm1.php"
 	);
 
-
+	
+	##From sys_todos
+	t3lib_extMgm::insertModuleFunction(
+		'user_task',
+		'tx_sysworkflows',
+		t3lib_extMgm::extPath($_EXTKEY).'class.tx_sysworkflows.php',
+		'LLL:EXT:sys_workflows/locallang.php:pi_todo'
+	);
 }
 
 t3lib_extMgm::addLLrefForTCAdescr('sys_workflows','EXT:sys_workflows/locallang_csh_sysworkf.php');

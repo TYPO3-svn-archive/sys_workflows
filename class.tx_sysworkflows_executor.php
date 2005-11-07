@@ -32,7 +32,7 @@
 
 class tx_sysworkflows_executor {
 	var $BE_USER;
-	var $pObj; // parent object. Expected to be an instance of tx_systodos
+	var $pObj; // parent object. Expected to be an instance of tx_sysworkflows
 	var $field_values;
 	var $tce;
 	/* positive pid creates new record as first record within that

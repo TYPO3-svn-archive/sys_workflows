@@ -1,3 +1,7 @@
+2005-11-07  Christian Jul Jensen  <christian@jul.net>
+
+	* Merged sys_todos into sys_workflows, so they no longer depend on eachother, also I moved the development from 3.8 to 3.9-dev
+
 2005-11-03  Christian Jul Jensen  <christian@jul.net>
 
 	* Back to updating CVS
