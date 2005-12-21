@@ -167,6 +167,7 @@ class tx_sysworkflows_executor {
 			return $this->createNewVersionOfRecord($relRecord['tablename'], $relRecord['idref']);
 			break;
 			case 'delete':
+			die('not implemented ('.__FILE__.' : '.__LINE__.')');
 			break;
 			case 'move':
 			break;

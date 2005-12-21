@@ -76,7 +76,7 @@ class tx_sysworkflows_definition {
 		return $rows;
 	}
 
-	function getWorkFlow($uid,$checkTable='',$checkAction='',$checkUser='create') {
+	function getWorkFlow($uid,$checkTable='',$checkAction='',$checkUser='') {
 		$res = $this->queryUserWorkFlows($checkTable,'sys_workflows.*',$uid,$checkAction,$checkUser);
 		return $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
 	}
@@ -272,10 +272,9 @@ class tx_sysworkflows_definition {
 
 	}
 
-	/*
+	/**
 	* $iRow: workflow instance row
 	* $uid: uid of the current workflow
-	*
 	*/
 
 	function exec_begin($iRow,$uid,$input,&$RD_URL,$field_values) {
@@ -331,14 +330,14 @@ class tx_sysworkflows_definition {
 		return null;
 	}
 
-	function exec_passon() {
+	function exec_passon($iRow,$uid,$input,&$RD_URL,$field_values) {
 		// todos_status_passOn, just pass on to selected target
-		if (intval($data['sys_todos_users_mm'][$key]['status']['newTarget'])) {
-			$this->pObj->wfExe->addvalue('uid_foreign',$data['sys_todos_users_mm'][$key]['status']['newTarget']);
+		if (intval($input['newTarget'])) {
+			$this->pObj->wfExe->addvalue('uid_foreign',$input['newTarget']);
 		}
 	}
 
-	function exec_reject() {
+	function exec_reject($iRow,$uid,$input,&$RD_URL,$field_values) {
 		// todos_status_reject, target = sender user
 		$this->pObj->wfExe->addvalue('uid_foreign',$row['cruser_id']);
 	}

@@ -259,7 +259,7 @@ class tx_sysworkflows extends mod_user_task {
 		$todoTypes = array();
 		#			$todoTypes['plain'] = '['.$LANG->getLL('todos_plain').']';
 		if ($this->loadDefinition()) {
-			$todoTypes += $this->wfDef->getWorkflowTypes($this->BE_USER);
+			$todoTypes += $this->wfDef->getWorkflowTypes($this->BE_USER,'','','create');
 		}
 		// Printing the todo list of a user:
 		if(!$tUid && !is_string(t3lib_div::_GP('action'))) {
@@ -444,7 +444,9 @@ class tx_sysworkflows extends mod_user_task {
 					// target:
 					$funcName = 'exec_'.$code;
 					if(substr($wF, 0, 3) == "wf_" && $this->loadDefinition() && method_exists ($this->wfDef,$funcName)){
-						$field_values = $this->wfDef->$funcName($row,substr($wF, 3),$data['sys_todos_users_mm'][$key]['status'],$RD_URL,$field_values); //pass uid of workflow
+						$wfUid = substr($wF, 3);
+						$field_values = $this->wfDef->$funcName($row,$wfUid,$data['sys_todos_users_mm'][$key]['status'],$RD_URL,$field_values);
+						$this->createNotification($code,$data['sys_todos_users_mm'][$key]['status']['newTarget'],$wfUid);
 					} elseif(method_exists ($this,$code)) {
 						$this->$code();
 					}
@@ -461,7 +463,7 @@ class tx_sysworkflows extends mod_user_task {
 				}
 			}
 		}
-	}
+	} //updateInstance
 
 	function createTodo($data) {
 		global $LANG;
@@ -482,7 +484,7 @@ class tx_sysworkflows extends mod_user_task {
 				'crdate' => time(),
 				'cruser_id' => $this->BE_USER->user['uid'] );
 				$GLOBALS['TYPO3_DB']->exec_INSERTquery('sys_todos', $fields_values);
-
+				$todoUid = $GLOBALS['TYPO3_DB']->sql_insert_id();
 				// Relation:
 				if (!$GLOBALS['TYPO3_DB']->sql_error()) {
 					$fields_values = array(
@@ -497,38 +499,8 @@ class tx_sysworkflows extends mod_user_task {
 					$GLOBALS['TYPO3_DB']->exec_INSERTquery('sys_todos_users_mm', $fields_values);
 				}
 
-				// SEnding email notification and filling the emRec array:
-				$tempQ = FALSE;
-				$emRec = array();
-				if ($data['sys_todos'][$key]['target_user'] > 0) {
-					// Ordinary user
-					$tempQ = TRUE;
-					$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email', 'be_users', 'uid='.intval($data['sys_todos'][$key]['target_user']).t3lib_BEfunc::deleteClause('be_users'));
-				}
-				if ($data['sys_todos'][$key]['target_user'] < 0) {
-					// Users in group
-					$tempQ = TRUE;
-					$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email', 'be_users', $GLOBALS['TYPO3_DB']->listQuery('usergroup_cached_list', abs($data['sys_todos'][$key]['target_user']), 'be_users').t3lib_BEfunc::deleteClause('be_users'));
-				}
-				if ($tempQ) {
-					$sAE = t3lib_div::_GP('sendAsEmail'); // This flag must be set in order for the email to get sent
-					while ($brow = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-						$sendM = 0;
-						if ($sAE && strstr($brow['email'], '@') && $brow['uid'] != $this->BE_USER->user['uid']) {
-							// Send-flag must be set, the user must have an email address and finally mails are not sent to the creating user, should he be in the group.
-							$this->sendEmail($brow['email'], $data['sys_todos'][$key]['title'], $data['sys_todos'][$key]['description']);
-							$sendM = 1;
-						}
-						$emRec[] = $brow['username'].($sendM ? " (".$brow['email'].")" : "");
-					}
-				}
-				if (count($emRec)) {
-					// $emRec just stores the users which is in the target group/target-user and here the list is displayed for convenience.
-					$emailList = implode('<BR>&nbsp;&nbsp;', $emRec);
-					$theCode .= $this->pObj->doc->section($LANG->getLL('todos_created'), $LANG->getLL('todos_created_msg').'<BR>&nbsp;&nbsp;'.$emailList, 0, 1, 1);
-				}
-			} else {
-				//     $theCode.= $this->pObj->doc->section($LANG->getLL('todos_created'),$this->errorIcon().$GLOBALS['TBE_TEMPLATE']->rfw($LANG->getLL('todos_createdError_msg')),0,1);
+
+				$this->createNotification('create',$data['sys_todos'][$key]['target_user'],$todoUid);
 			}
 		} else {
 			// Edit todo:
@@ -676,7 +648,7 @@ class tx_sysworkflows extends mod_user_task {
 			$theCode .= '<span class="header">'.$LANG->getLL('todos_type').': </span><span class="content">'.$this->todos_workflowTitle($todoTypes, $row['type']).'</span><br />';
 			$wF = $row['type'];
 			if (substr($wF, 0, 3) == "wf_" && $this->loadDefinition()) {
-				$workflowDef = $this->wfDef->getWorkFlow(substr($wF, 3),'','',false);
+				$workflowDef = $this->wfDef->getWorkFlow(substr($wF, 3));
 
 				if (is_array($workflowDef) && $workflowDef['tablename']) {
 					$theCode .= '<span class="header">'.$LANG->getLL('todos_workflowDescr').': </span><span class="content">'.$workflowDef['description'].'</span><br />';
@@ -794,7 +766,7 @@ class tx_sysworkflows extends mod_user_task {
 
 		$wF = $row['type'];
 		if (substr($wF, 0, 3) == "wf_" && $this->loadDefinition()) {
-			$workflow_row = $this->wfDef->getWorkFlow(substr($wF, 3),'','',false);
+			$workflow_row = $this->wfDef->getWorkFlow(substr($wF, 3));
 			$transitions = $this->wfDef->getTransitions($row['state'],$workflow_row['uid']);
 		}
 
@@ -854,7 +826,7 @@ function clickTarget(buttonID,targetUID) {
 		return '<div class="action">'.$jscode.$code.'<div style="width: 100%; height: 1px; clear: both;"></div></div>';
 		/*
 		if (substr($wF, 0, 3) == "wf_" && $this->loadDefinition()) {
-		$workflow_row = $this->wfDef->getWorkFlow(substr($wF, 3),'','',false);
+		$workflow_row = $this->wfDef->getWorkFlow(substr($wF, 3));
 		}
 		if ($this->loadDefinition() && is_array($workflow_row)) {
 		$revUsers = $this->wfDef->getReviewUsers($workflow_row['uid']);
@@ -1296,8 +1268,8 @@ function clickTarget(buttonID,targetUID) {
 
 	function getEditOnClick($recRef) {
 		return htmlspecialchars('list_frame.document.location="'.$this->getEditRedirectUrlForReference($recRef).'";return false;');
-#		$parts = explode(':', $recRef);
-#		return htmlspecialchars('list_frame.'.t3lib_BEfunc::editOnClick('&edit['.$parts[0].']['.$parts[1].']=edit',$GLOBALS['BACK_PATH'],t3lib_div::getIndpEnv('TYPO3_SITE_URL').TYPO3_mainDir.'close.html'));
+		#		$parts = explode(':', $recRef);
+		#		return htmlspecialchars('list_frame.'.t3lib_BEfunc::editOnClick('&edit['.$parts[0].']['.$parts[1].']=edit',$GLOBALS['BACK_PATH'],t3lib_div::getIndpEnv('TYPO3_SITE_URL').TYPO3_mainDir.'close.html'));
 	}
 
 	/**
@@ -1336,6 +1308,21 @@ function clickTarget(buttonID,targetUID) {
 		'comment' => $comment
 		);
 	} //initLog
+
+
+	function createNotification($code,$target,$wfUid) {
+		if(t3lib_extMgm::isLoaded('gabriel')) {
+			$notifier = t3lib_div::getUserObj('EXT:sys_workflows/class.tx_sysworkflows_notifier.php:tx_sysworkflows_notifier');
+			$funcName = 'exec_'.$code;
+			if(method_exists($notifier,$funcName)) {
+				$notifier->setStateRecord($this->getStateRecord($wfUid));
+
+				$notifier->$funcName();
+			}
+		} else {
+			/** @todo log missing notification */
+		}
+	}
 
 } //class mod_user_task
 
