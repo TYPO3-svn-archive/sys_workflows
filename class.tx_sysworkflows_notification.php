@@ -37,7 +37,10 @@ include_once(PATH_site.'tslib/class.tslib_content.php');
 
 class tx_sysworkflows_notification extends tx_gabriel_event {
 
-	var $rcp;
+	var $target;
+	var $reminder;
+	var $sendingUserUid;
+	var $workflowUid;
 	var $subject;
 	var $plainText;
 	var $html;
@@ -46,7 +49,9 @@ class tx_sysworkflows_notification extends tx_gabriel_event {
 	var	$returnPath;
 
 	/**
-	 * PHP4 wrapper for constructor
+	 * PHP4 wrapper for constructor, 
+	 * have to be here evne though the constructor is not defined in the derived class, 
+	 * else the constructor of the parent class will not be called in PHP4
 	 *
 	 */
 	function tx_sysworkflows_notification() {
@@ -64,12 +69,67 @@ class tx_sysworkflows_notification extends tx_gabriel_event {
 		$email->returnPath = $this->returnPath;
 		$email->addPlain($this->plainText);
 		$email->setHTML($email->encodeMsg($this->html));
-		$email->send($this->rcp);
+		if($this->reminder) {
+			$this->reminder($email);
+		}
+		$rcpArray = $this->getRecipients();
+		$email->setHeaders();
+		$email->add_header('CC: '.$this->ccRcps);
+		
+		$email->setContent();
+		foreach ($rcpArray as $rcp) {
+			$email->recipient = $rcp;
+			$email->sendTheMail();
+		}
 
 	}
 
-	function setRcp($rcp) {
-		$this->rcp = $rcp;
+	function notification(&$email) {
+
+	}
+
+	function reminder(&$email) {
+		if ($this->isWorkflowFinished()) {
+			$this->remove();
+		} else {
+
+
+		}
+	}
+
+	function getCurrentTarget() {
+		$row = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('uid_foreign','sys_todos_users_mm','uid_local='.intval($this->workflowUid));
+		if(is_array($row[0])) {
+			return $row[0]['uid_foreign'];
+		} else {
+			return null;
+		}
+	}
+
+
+	function isWorkflowFinished() {
+		$row = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('finished','sys_todos','uid='.intval($this->workflowUid));
+		if(is_array($row[0])) {
+			return $row[0]['finished']?true:false;
+		} else {
+			return null;
+		}
+	}
+
+	function setReminderStatus() {
+		$this->reminder = true;
+	}
+
+	function setTarget($target) {
+		$this->target = $target;
+	}
+
+	function setSendingUserUid($userUid) {
+		$this->sendingUserUid = $userUid;
+	}
+
+	function setWorkflowUid($workflowUid) {
+		$this->workflowUid = $workflowUid;
 	}
 
 	function setSubject($subject) {
@@ -91,9 +151,51 @@ class tx_sysworkflows_notification extends tx_gabriel_event {
 	function setHtmlMessage($html) {
 		$this->html = $html;
 	}
-	
+
 	function setPlainTextMessage($plainText) {
 		$this->plainText = $plainText;
+	}
+	function getRecipients() {
+
+		$rcpArray = array();
+		$target = $this->target?$this->target:$this->getCurrentTarget();
+
+		if ($target >= 0) {
+			// Ordinary user
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email', 'be_users',
+			'uid='.intval($target).t3lib_BEfunc::deleteClause('be_users')
+			);
+		}
+		if ($target < 0) {
+			// Users in group
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email',
+			'be_users',
+			$GLOBALS['TYPO3_DB']->listQuery('usergroup_cached_list', abs($target), 'be_users').t3lib_BEfunc::deleteClause('be_users')
+			);
+		}
+
+		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+			if (strstr($row['email'], '@') && $row['uid'] != $this->sendingUserUid) {
+				// the user must have an email address and mails are not sent to the creating user, should he be in the group.
+				$rcpArray[] = $row['realName'].' <'.$row['email'].'>';
+			}
+		}
+
+		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email',
+		'be_users,sys_todos_notify_users_mm',
+		'uid=uid_foreign AND uid_local='.intval($this->workflowUid).t3lib_BEfunc::deleteClause('be_users')
+		);
+
+
+		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+			if (strstr($row['email'], '@') && $row['uid'] != $this->sendingUserUid) {
+				// the user must have an email address and mails are not sent to the creating user, should he be in the group.
+				$ccRcps[] = $row['realName'].' <'.$row['email'].'>';
+			}
+		}
+		
+		$this->ccRcps = implode(',',$ccRcps);
+		return $rcpArray;
 	}
 
 

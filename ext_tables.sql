@@ -90,7 +90,9 @@ CREATE TABLE sys_todos (
 CREATE TABLE sys_todos_users_mm (
   uid_local int(11) unsigned DEFAULT '0' NOT NULL,
   uid_foreign int(11) DEFAULT '0' NOT NULL,
+  prev_user int(11) DEFAULT '0' NOT NULL,
   state tinyblob NOT NULL,
+  prev_state tinyblob NOT NULL,
   status tinyint(4) DEFAULT '0' NOT NULL,
   status_log mediumblob NOT NULL,
   is_read tinyint(4) DEFAULT '0' NOT NULL,
@@ -106,4 +108,14 @@ CREATE TABLE sys_todos_users_mm (
   KEY uid_local (uid_local),
   KEY uid_foreign (uid_foreign),
   PRIMARY KEY (mm_uid)
+);
+
+#
+# Table structure for table 'sys_todos_users_mm'
+#
+CREATE TABLE sys_todos_notify_users_mm (
+  uid_local int(11) unsigned DEFAULT '0' NOT NULL,
+  uid_foreign int(11) DEFAULT '0' NOT NULL,
+  KEY uid_local (uid_local),
+  KEY uid_foreign (uid_foreign)
 );

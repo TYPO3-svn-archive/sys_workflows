@@ -34,11 +34,16 @@ class tx_sysworkflows_notifier {
 
 
 	var $stateRecord;
+	var $target;
 
 	function setStateRecord($stateRecordArray) {
 		$this->stateRecord = $stateRecordArray;
 	}
-	
+
+	function setTarget($target) {
+		$this->target = $target;
+	}
+
 	function exec_create() {
 		$this->createNotifications('You have been assigned a new workflow','You have been assigned a new workflow');
 	}
@@ -64,7 +69,7 @@ class tx_sysworkflows_notifier {
 	}
 
 	function exec_review() {
-		$this->createNotifications('Workflow has been sen to review','');
+		$this->createNotifications('Workflow has been sent to review','');
 	}
 
 	function exec_reset() {
@@ -79,93 +84,45 @@ class tx_sysworkflows_notifier {
 		$this->createNotifications('New instance of workflow has been created','');
 	}
 
-	function createNotifications($subject,$text) {
+	function reminders($recurring) {
+		$this->createNotifications('Reminder','this is a reminder',$recurring);
+	}
+
+	function createNotifications($subject,$text,$recurring=null) {
 		$user = $GLOBALS['BE_USER']->user;
-		$rcpArray = $this->getRecipients();
-		foreach ($rcpArray as $rcp) {
-			$notification = t3lib_div::getUserObj('EXT:sys_workflows/class.tx_sysworkflows_notification.php:tx_sysworkflows_notification');
+		if($this->stateRecord['uid']) {
+			$text .="\r\n".t3lib_div::getIndpEnv('TYPO3_SITE_URL').TYPO3_mainDir.'index.php?redirect_url=alt_main.php%3Fmodule%3Duser_task%26modParams%3Dsys_todos_uid%3D'.$this->stateRecord['uid'];
+		}
+
+
+		$notification = t3lib_div::getUserObj('EXT:sys_workflows/class.tx_sysworkflows_notification.php:tx_sysworkflows_notification');
+
+		if ($recurring!=null) {
+			$notification->registerRecurringExecution(time()+$recurring,$recurring,strtotime('+10 years'));
+			$notification->setTarget(null);
+			$notification->setSendinguserUid(0);
+			$notification->setReminderStatus();
+
+		} else {
 			$notification->registerSingleExecution(time());
-			$notification->setRcp($rcp);
-			$notification->setSubject($subject);
-			$notification->setFrom_email($user['email']);
-			$notification->setFrom_name($user['realName']);
-			$notification->setReturnPath((trim($user['realName'])?$user['realName']:$user['realName']).' <'.$this->user['email'].'>');
-			if($this->stateRecord['uid']) {
-				$text .="\r\n".t3lib_div::getIndpEnv('TYPO3_SITE_URL').TYPO3_mainDir.'index.php?redirect_url=alt_main.php%3Fmodule%3Duser_task%26modParams%3Dsys_todos_uid%3D'.$this->stateRecord['uid'];
-			}
-
-			$notification->setPlainTextMessage($text);
-			$cObj = t3lib_div::makeInstance('tslib_cObj');
-			$notification->setHtmlMessage('<html><body>'.nl2br($cObj->http_makelinks($text,array())).'</body></html>');
-
-			$gabriel = t3lib_div::getUserObj('EXT:gabriel/class.tx_gabriel.php:&tx_gabriel');
-			$gabriel->addEvent($notification,'sys_workflows '.time());
+			#$notification->setTarget($this->target);
+			$notification->setSendinguserUid($GLOBALS['BE_USER']->user['uid']);
 		}
-	}
 
-	/**
-	 * @todo add selection of rcps that chose to watch the wf.
-	 */
+		$notification->setWorkflowUid($this->stateRecord['uid']);
 
-	function getRecipients() {
-		$target = intval($this->stateRecord['uid_foreign']);
-		if ($target >= 0) {
-			// Ordinary user
-			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email', 'be_users', 'uid='.intval($target).t3lib_BEfunc::deleteClause('be_users'));
-		}
-		if ($target < 0) {
-			// Users in group
-			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email', 'be_users', $GLOBALS['TYPO3_DB']->listQuery('usergroup_cached_list', abs($target), 'be_users').t3lib_BEfunc::deleteClause('be_users'));
-		}
-		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-			if (strstr($row['email'], '@') && $row['uid'] != $this->BE_USER->user['uid']) {
-				// the user must have an email address and mails are not sent to the creating user, should he be in the group.
-				$rcpArray[] = $row['realName'].' <'.$row['email'].'>';
-			}
-		}
-		return $rcpArray;
+		$notification->setSubject($subject);
+		$notification->setFrom_email($user['email']);
+		$notification->setFrom_name($user['realName']);
+		$notification->setReturnPath((trim($user['realName'])?$user['realName']:$user['realName']).' <'.$this->user['email'].'>');
+
+		$notification->setPlainTextMessage($text);
+		$cObj = t3lib_div::makeInstance('tslib_cObj');
+		$notification->setHtmlMessage('<html><body>'.nl2br($cObj->http_makelinks($text,array())).'</body></html>');
+		$gabriel = t3lib_div::getUserObj('EXT:gabriel/class.tx_gabriel.php:&tx_gabriel');
+		$gabriel->addEvent($notification,'sys_workflows '.time().'_'.$this->stateRecord['uid']);
 	}
 
 }
-
-// cut from tx_sysworkflows::createTodo(()
-
-/*
-// SEnding email notification and filling the emRec array:
-$tempQ = FALSE;
-$emRec = array();
-
-if ($data['sys_todos'][$key]['target_user'] > 0) {
-// Ordinary user
-$tempQ = TRUE;
-$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email', 'be_users', 'uid='.intval($data['sys_todos'][$key]['target_user']).t3lib_BEfunc::deleteClause('be_users'));
-}
-if ($data['sys_todos'][$key]['target_user'] < 0) {
-// Users in group
-$tempQ = TRUE;
-$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid,username,realName,email', 'be_users', $GLOBALS['TYPO3_DB']->listQuery('usergroup_cached_list', abs($data['sys_todos'][$key]['target_user']), 'be_users').t3lib_BEfunc::deleteClause('be_users'));
-}
-if ($tempQ) {
-//					$sAE = t3lib_div::_GP('sendAsEmail'); // This flag must be set in order for the email to get sent
-$sAE = true;
-while ($brow = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-$sendM = 0;
-if ($sAE && strstr($brow['email'], '@') && $brow['uid'] != $this->BE_USER->user['uid']) {
-// Send-flag must be set, the user must have an email address and finally mails are not sent to the creating user, should he be in the group.
-//							$this->sendEmail($brow['email'], $data['sys_todos'][$key]['title'], $data['sys_todos'][$key]['description']);
-$sendM = 1;
-}
-$emRec[] = $brow['username'].($sendM ? " (".$brow['email'].")" : "");
-}
-}
-
-
-if (count($emRec)) {
-// $emRec just stores the users which is in the target group/target-user and here the list is displayed for convenience.
-$emailList = implode('<BR>&nbsp;&nbsp;', $emRec);
-$theCode .= $this->pObj->doc->section($LANG->getLL('todos_created'), $LANG->getLL('todos_created_msg').'<BR>&nbsp;&nbsp;'.$emailList, 0, 1, 1);
-}
-*/
-
 
 ?>

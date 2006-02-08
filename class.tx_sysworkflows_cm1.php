@@ -89,6 +89,7 @@ class tx_sysworkflows_cm1 {
 					  $row['title'].' '.$action,
 					  $backRef->excludeIcon('<img src="'.t3lib_extMgm::extRelPath("sys_workflows").'cm1/cm_icon.gif" width="15" height="12" border=0 align=top>'),
 						str_replace('(top.content.list_frame)?top.content.list_frame:top.content','top.content',$backRef->urlRefForCM($url)).'top.fsMod.currentMainLoaded="user";', // this is a hack, ask Kasper how to do it properly
+						$backRef->urlRefForCM($url).'top.fsMod.currentMainLoaded="user";',
 					  1	// Disables the item in the top-bar. Set this to zero if you with the item to appear in the top bar!
 						);
 					}

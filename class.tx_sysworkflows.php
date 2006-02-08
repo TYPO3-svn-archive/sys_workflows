@@ -144,41 +144,6 @@ class tx_sysworkflows extends mod_user_task {
 		$str = '<a href="index.php?SET[function]=tx_sysworkflows&sys_todos_uid='.$id.'" onClick="this.blur();">'.$str.'</a>';
 		return $str;
 	} //todos_link
-	/**
-	 * Generate list of possible target users and groups for the task
-	 *
-	 * @param  Array  $be_user_Array: Array of possible users, each entry containing the keys/fields: username, usergroup, usergroup_cached_list, uid, realName, email
-	 * @param  Array  $be_group_Array:Array of possible groups, each entry containing the keys/fields: title, uid
-	 * @param  String $type: ??? Is set to NEW on new tasks, but ...
-	 * @param  Bool  $returnOptsOnly: return only the options, not the whole selectorbox
-	 * @return String The selectorbox, possibly only the options (HTML)
-	 *
-	 * @todo should get possible targets from def-class / passed as arg
-	 */
-	function OLD_makeTargetSelector($be_user_Array, $be_group_Array, $type, $returnOptsOnly = 0) {
-		global $LANG;
-		// Plain todo
-		$opt = array();
-		reset($be_user_Array);
-		$first = true;
-		while (list($uid, $dat) = each($be_user_Array)) {
-			$opt[] = '<option value="'.$uid.'">'.htmlspecialchars($dat['username'].($dat['uid'] == $this->BE_USER->user['uid']?' ['.$LANG->getLL('lSelf').']':' ('.$dat['realName'].')')).'</option>';
-			if ($first) {
-				$defaultUid = $uid;
-			}
-			$first = false;
-		}
-		if (count($be_group_Array)) {
-			$opt[] = $LANG->getLL('listSeparator_Groups');
-			reset($be_group_Array);
-			while (list($uid, $dat) = each($be_group_Array)) {
-				$opt[] = '<option value"-'.$uid.'">'.htmlspecialchars($dat['title']).'</option>';
-			}
-		}
-		if ($returnOptsOnly) return $opt;
-
-		return $jscode.'<select  name="data[sys_todos]['.$type.'][target_user]">'.implode('', $opt).'</select>';
-	} //todos_makeTargetSelector
 
 	/**
 	 * Generate list of possible target users and groups for the task
@@ -446,9 +411,14 @@ class tx_sysworkflows extends mod_user_task {
 					if(substr($wF, 0, 3) == "wf_" && $this->loadDefinition() && method_exists ($this->wfDef,$funcName)){
 						$wfUid = substr($wF, 3);
 						$field_values = $this->wfDef->$funcName($row,$wfUid,$data['sys_todos_users_mm'][$key]['status'],$RD_URL,$field_values);
-						$this->createNotification($code,$data['sys_todos_users_mm'][$key]['status']['newTarget'],$wfUid);
+						$this->createNotification($code,$data['sys_todos_users_mm'][$key]['status']['newTarget'],$key);
 					} elseif(method_exists ($this,$code)) {
 						$this->$code();
+					}
+					if($data['sys_todos_users_mm'][$key]['observeWorkflow']) {
+						$this->setUserAsObserver($key);
+					} else {
+						$this->unsetUserAsObserver($key);
 					}
 
 					$this->wfExe->saveRecord($this->logData,$row,$key);
@@ -488,19 +458,29 @@ class tx_sysworkflows extends mod_user_task {
 				// Relation:
 				if (!$GLOBALS['TYPO3_DB']->sql_error()) {
 					$fields_values = array(
-					'uid_local' => $GLOBALS['TYPO3_DB']->sql_insert_id(),
+					'uid_local' => $todoUid,
 					'uid_foreign' => $data['sys_todos'][$key]['target_user'],
 					'tstamp' => time(),
 					'action' => $data['sys_todos'][$key]['action'],
 					'tablename' => $data['sys_todos'][$key]['table'],
 					'idref' => $data['sys_todos'][$key]['uid'],
 					);
+					//if the action is deletion, there is no begin step, as there is nothing to edit.
+					if($data['sys_todos'][$key]['action']=='delete' && $this->loadExecutor()) {
+						$recId = $this->wfExe->beginWorkFlow($fields_values);
+						if ($recId) {
+							$fields_values['rec_reference'] = $recId;
+							$fields_values['state'] ='started';
+						}
+					}
 					$GLOBALS['TYPO3_DB']->debugOutput = 1;
 					$GLOBALS['TYPO3_DB']->exec_INSERTquery('sys_todos_users_mm', $fields_values);
 				}
-
-
+				if($data['sys_todos'][$key]['observeWorkflow']) {
+					$this->setUserAsObserver($todoUid);
+				}
 				$this->createNotification('create',$data['sys_todos'][$key]['target_user'],$todoUid);
+				$this->scheduleReminders($todoUid);
 			}
 		} else {
 			// Edit todo:
@@ -767,7 +747,7 @@ class tx_sysworkflows extends mod_user_task {
 		$wF = $row['type'];
 		if (substr($wF, 0, 3) == "wf_" && $this->loadDefinition()) {
 			$workflow_row = $this->wfDef->getWorkFlow(substr($wF, 3));
-			$transitions = $this->wfDef->getTransitions($row['state'],$workflow_row['uid']);
+			$transitions = $this->wfDef->getTransitions($row['state'],$workflow_row['uid'],$row['action']);
 		}
 
 
@@ -786,7 +766,7 @@ class tx_sysworkflows extends mod_user_task {
 					$code .= '<input  id="'.$key.'" type="button" value="'.$transition['label'].'" onClick="setAndSubmit(this);" /><br/>';
 				}
 			}
-			$code .= '</div><input id="workflow-code" type="hidden" name="data[sys_todos_users_mm]['.$row['mm_uid'].'][status][code]" value="" /><input type="hidden" name="newStatus" value="'.$LANG->getLL('todos_newStatus').'"><input id="workflow-uid" type="hidden" name="sys_todos_uid" value="'.$tUid.'"><input id="workflow-target"type="hidden" name="data[sys_todos_users_mm]['.$row['mm_uid'].'][status][newTarget]" value="">';
+			$code .= '<input type="checkbox" name="data[sys_todos_users_mm]['.$row['mm_uid'].'][observeWorkflow]" value="1"'.($this->isUserObserving(abs($tUid))?' checked="checked" ':'').'>'.$LANG->getLL('email_notification').'</div><input id="workflow-code" type="hidden" name="data[sys_todos_users_mm]['.$row['mm_uid'].'][status][code]" value="" /><input type="hidden" name="newStatus" value="'.$LANG->getLL('todos_newStatus').'"><input id="workflow-uid" type="hidden" name="sys_todos_uid" value="'.$tUid.'"><input id="workflow-target"type="hidden" name="data[sys_todos_users_mm]['.$row['mm_uid'].'][status][newTarget]" value="">';
 			$jscode = '
 <script language="javascript">
 function setAndSubmit(button) {
@@ -1146,14 +1126,14 @@ function clickTarget(buttonID,targetUID) {
 					// If	 it's a workflow from sys_workflows table, the list of target groups and users is re-fetched, according the the target_groups definition.
 					$workflowDef = $this->wfDef->getWorkFlow(substr($wF, 3),t3lib_div::_GET('table'),t3lib_div::_GET('action'));
 					if (is_array($workflowDef) && t3lib_div::_GET('table')) {
-						/**
-						 * @todo inline styles should be moved to external file
-						 */
 
 						$top .= '<div class="workflow-top"><h1>Start new workflow</h1>';
 						$top .= '<span class="header">'.$LANG->getLL('todos_type').': 											</span><span class="content">' . $workflowDef['title'].'</span><br />';
 						$top .= '<span class="header">Description: </span><span class="content">' . $workflowDef['description'].'</span><br />';
 						$refRecord = t3lib_BEfunc::getRecord(t3lib_div::_GET('table'),t3lib_div::_GET('uid'));
+						/**
+						 * @todo title-field of record shoud be looked up in TCA
+						 */
 						$top .= '<span class="header">Current action: </span><span class="content">' . t3lib_div::_GET('action').' - '.t3lib_iconWorks::getIconImage(t3lib_div::_GET('table'),$refRecord,$this->backPath).$refRecord['title'].'</span><br />';
 						$top .= '</div>';
 						$hidden = '<input type="hidden" name="data[sys_todos]['.$type.'][action]" value="'.t3lib_div::_GET('action').'">'.
@@ -1166,10 +1146,13 @@ function clickTarget(buttonID,targetUID) {
 						*/
 
 						$action = '<div class="action">';
-						$grL = implode(',', t3lib_div::intExplode(',', $workflowDef['target_groups']));
-						$wf_groupArray = t3lib_BEfunc::getGroupNames('title,uid', "AND uid IN (".($grL?$grL:0).')');
-						$wf_userArray = $this->blindUserNames($this->userGroupArray[2], array_keys($wf_groupArray));
-
+						if (t3lib_div::_GET('action')=='delete') {
+							$wf_userArray = $this->wfDef->getReviewUsers($workflowDef['uid']);
+						} else {
+							$grL = implode(',', t3lib_div::intExplode(',', $workflowDef['target_groups']));
+							$wf_groupArray = t3lib_BEfunc::getGroupNames('title,uid', "AND uid IN (".($grL?$grL:0).')');
+							$wf_userArray = $this->blindUserNames($this->userGroupArray[2], array_keys($wf_groupArray));
+						}
 						$action .= '<span class="header">'.$LANG->getLL('todos_target').'</span>'. $this->tasks_makeTargetSelector($wf_userArray, $wf_groupArray, $type);
 
 						// 	Title selector:
@@ -1207,8 +1190,8 @@ function clickTarget(buttonID,targetUID) {
 						$action .= '<span class="header">'.$LANG->getLL('todos_description').'</span>'. '<textarea rows="10" name="data[sys_todos]['.$type.'][description]"'.$this->pObj->doc->formWidthText(40, '', '').'>'.t3lib_div::formatForTextarea(is_array($editRec)?$editRec['description']:"").'</textarea>';
 
 						// Notify 	email:
-						if (!is_array($editRec) && $this->BE_USER->user['email']) {
-							$action .= '<input type="checkbox" name="sendAsEmail" value=1>'.$LANG->getLL('todo_email').'<BR>('.$LANG->getLL('lReplyAddress').': '.$this->BE_USER->user['email'].')';
+						if (!is_array($editRec) && $this->BE_USER->user['email'] && t3lib_extMgm::isLoaded('gabriel')) {
+							$action .= '<br /><input type="checkbox" name="data[sys_todos]['.$type.'][observeWorkflow]" value="1">'.$LANG->getLL('email_notification');
 						}
 
 						$onClick = "if (document.forms[0]['data[sys_todos][".$type."][title]'].value=='') {alert(".$GLOBALS['LANG']->JScharCode($LANG->getLL('todos_mustFillIn')).');return false;}';
@@ -1316,12 +1299,44 @@ function clickTarget(buttonID,targetUID) {
 			$funcName = 'exec_'.$code;
 			if(method_exists($notifier,$funcName)) {
 				$notifier->setStateRecord($this->getStateRecord($wfUid));
+				$notifier->setTarget($target);
 
 				$notifier->$funcName();
 			}
 		} else {
 			/** @todo log missing notification */
 		}
+	}
+
+	function scheduleReminders($wfUid) {
+		if(t3lib_extMgm::isLoaded('gabriel')) {
+			$notifier = t3lib_div::getUserObj('EXT:sys_workflows/class.tx_sysworkflows_notifier.php:tx_sysworkflows_notifier');
+			$notifier->setStateRecord($this->getStateRecord($wfUid));
+			$notifier->reminders(60);
+		} else {
+			/** @todo log missing notification */
+		}
+	}
+
+	function setUserAsObserver($wfUid) {
+		if(!$this->isUserObserving($wfUid)) {
+			$fields_values = array(
+			'uid_local' => $wfUid,
+			'uid_foreign' => $this->BE_USER->user['uid'] );
+			$GLOBALS['TYPO3_DB']->exec_INSERTquery('sys_todos_notify_users_mm', $fields_values);
+		}
+
+	}
+
+	function isUserObserving($wfUid) {
+		$WHERE = 'uid_local='.$wfUid.' AND	uid_foreign='.$this->BE_USER->user['uid'];
+		$rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('count(*)','sys_todos_notify_users_mm', $WHERE);
+		return $rows[0]['count(*)']?true:false;
+	}
+
+	function unsetUserAsObserver($wfUid) {
+		$WHERE = 'uid_local='.$wfUid.' AND	uid_foreign='.$this->BE_USER->user['uid'];
+		$GLOBALS['TYPO3_DB']->exec_DELETEquery('sys_todos_notify_users_mm', $WHERE);
 	}
 
 } //class mod_user_task

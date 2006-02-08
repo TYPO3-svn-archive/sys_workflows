@@ -114,6 +114,21 @@ class tx_sysworkflows_executor {
 		$this->callTCE(array(),$cmdArr);
 	} //publicNewVersion
 
+	function deleteRecord($table,$uid) {
+		global $TCA;
+		$dataArr = array();
+		$cmdArr = array();
+		if ($TCA[$table]['ctrl']['delete']) {
+			$dataArr[$table][$uid][$TCA[$table]['ctrl']['delete']] = 1;
+		} else {
+			debug('tried to delete but table: '.$table.' does not support it ('.__FILE__.','.__LINE__.')');
+		}
+
+		$this->callTCE($dataArr,$cmdArr);
+	} //publishNewRecord
+
+
+
 	function callTCE($dataArr,$cmdArr,$useExistingTCE=false) {
 		//sanity check - since the setting depends on the client.
 		assert('is_a($this->BE_USER,\'t3lib_beuserauth\')');
@@ -167,7 +182,7 @@ class tx_sysworkflows_executor {
 			return $this->createNewVersionOfRecord($relRecord['tablename'], $relRecord['idref']);
 			break;
 			case 'delete':
-			die('not implemented ('.__FILE__.' : '.__LINE__.')');
+			return $relRecord['tablename'].':'.$relRecord['idref'];
 			break;
 			case 'move':
 			break;
@@ -189,6 +204,9 @@ class tx_sysworkflows_executor {
 		global $TCA;
 		list($table, $uid) = explode(':', $relRecord['rec_reference']);
 		if ($relRecord['tablename'] == $table && $TCA[$table]) {
+			if ($relRecord['action']=='delete') {
+				$this->deleteRecord($table,$uid);
+			}
 			$itemRecord = t3lib_BEfunc::getRecord($table, $uid);
 			if (is_array($itemRecord)) {
 				if('-1' == $itemRecord['pid']) {
