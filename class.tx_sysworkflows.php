@@ -122,7 +122,7 @@ class tx_sysworkflows extends mod_user_task {
 
 		$lines = array();
 		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-			$lines[] = '<nobr>'.($row['cruser_id'] == $this->BE_USER->user['uid']?$userImg:$groupImg).$this->todos_link($this->fixed_lgd($row['title']), -$row['mm_uid']).'</nobr><BR>';
+			$lines[] = '<nobr>'.($row['cruser_id'] == $this->BE_USER->user['uid']?$userImg:$groupImg).$this->todos_link(htmlspecialchars($this->fixed_lgd($row['title'])), -$row['mm_uid']).'</nobr><BR>';
 		}
 
 		$res = $this->exec_todos_getQueryForTodoRels('', 'count(*)', 1);
@@ -162,7 +162,7 @@ class tx_sysworkflows extends mod_user_task {
 		$opt = array();
 		reset($be_user_Array);
 		$first = true;
-		$opt[] = 'Users:';
+		$opt[] = $LANG->getLL('todos_users');
 
 		if(sizeof($be_user_Array)>0) {
 			while (list($uid, $dat) = each($be_user_Array)) {
@@ -200,7 +200,7 @@ class tx_sysworkflows extends mod_user_task {
 		</script>';
 			return '<input id="target" type="hidden" name="data[sys_todos]['.$type.'][target_user]" value="'.$defaultUid.'"/><div id="target-list">'.implode('<br />', $opt).'</div>'.$jscode;
 		} else {
-			return '<div style="border: 2px solid black; color: red; background: white;">No available users to pass the workflow on to, pleas contact you administrator</div>';
+			return '<div style="border: 2px solid black; color: red; background: white;">' . $LANG->getLL('todos_noavailable_targets') .'</div>';
 		}
 	} //todos_makeTargetSelector
 
@@ -238,7 +238,7 @@ class tx_sysworkflows extends mod_user_task {
 
 				$row = $this->getStateRecord($tUid);
 				$menuItems[] = array(
-				'label' => 'Description',
+				'label' => $LANG->getLL('todos_tabs_description'),
 				'content' => $this->getDescription($row,$RD_URL).$this->getUpdateForm($tUid, $countOfInstances).$this->urlInIframe($RD_URL,1)
 				);
 				//				$menuItems[] = array(
@@ -246,7 +246,7 @@ class tx_sysworkflows extends mod_user_task {
 				//				'content' => $this->getUpdateForm($tUid, $countOfInstances)
 				//				);
 				$menuItems[] = array(
-				'label' => 'History',
+				'label' => $LANG->getLL('todos_tabs_history'),
 				'content' => $this->getStatus($row,$tUid)
 				);
 				return $this->getCSS().$this->pObj->doc->getDynTabMenu($menuItems,'tx_sysworkflows',0);
@@ -621,7 +621,7 @@ class tx_sysworkflows extends mod_user_task {
 		$dLine = $this->dateTimeAge($row['deadline'], -1).'&nbsp;';
 		if ($row['deadline'] < time()) $dLine = '<span class="typo3-red">'.$dLine.'</span>';
 		$theCode .= '<span class="header">'.$LANG->getLL('todos_deadline').': </span><span class="content">'. $dLine.'</span><br />';
-		$theCode .= '<span class="header">'.$LANG->getLL('todos_description').': </span><span class="content">'.nl2br($row['description']).'</span><br />';
+		$theCode .= '<span class="header">'.$LANG->getLL('todos_description').'</span><span class="content">'.nl2br($row['description']).'</span><br />';
 
 
 		if ($row['type'] && $row['type'] != 'plain') {
@@ -758,7 +758,7 @@ class tx_sysworkflows extends mod_user_task {
 					$code .= '<input  id="'.$key.'" type="button" value="'.$transition['label'].'" onClick="displayTargets(this);" />';
 					$code .= '<div id="'.$key.'-targets" class="targets">';
 					foreach ($transition['targets'] as $target) {
-						$code .= '<a href="javascript:clickTarget(\''.$key.'\',\''.$target['uid'].'\')" >'.($target['realName']?$target['realName'].' ('.$target['username'].')':$target['username']).'</a><br />';
+						$code .= '<a href="javascript:clickTarget(\''.$key.'\',\''.$target['uid'].'\')" >'. $this->printUserGroupName($target['uid'], 1).'</a><br />';
 					}
 					$code .= '<a class="cancel-targets" href="javascript:hideTargets(\''.$key.'-targets\');">'.$LANG->getLL('lCancel').'</a></div><br />';
 
@@ -800,7 +800,7 @@ function clickTarget(buttonID,targetUID) {
 ';
 
 		} else {
-			$code = 'This workflow have already been published';
+			$code = $LANG->getLL('todos_already_published');
 		}
 
 		return '<div class="action">'.$jscode.$code.'<div style="width: 100%; height: 1px; clear: both;"></div></div>';
@@ -1007,7 +1007,7 @@ function clickTarget(buttonID,targetUID) {
 				'bgColor-10';
 				$lines[] = '<tr>
 						<td class="'.$bgColorClass.'">'.$this->linkTodos('<img src="'.$this->backPath.'gfx/i/'.$iconName.'" width="18" height="16" hspace=2 border=0 title="'.$LANG->getLL('todos_instance').' #'.$row['mm_uid'].',  '.htmlspecialchars($LANG->getLL('todos_createdBy').': '.$this->userGroupArray[2][$row['cruser_id']]['username'].' ('.$this->userGroupArray[2][$row['cruser_id']]['realName'].')').'">', -$row['mm_uid']).'</td>
-						<td class="'.$bgColorClass.'" nowrap>'.$this->linkTodos($active.$bTb.'&nbsp;'.$this->fixed_lgd($row['title']).'&nbsp;'.$bTb, -$row['mm_uid']).'</td>
+						<td class="'.$bgColorClass.'" nowrap>'.$this->linkTodos($active.$bTb.'&nbsp;'.htmlspecialchars($this->fixed_lgd($row['title'])).'&nbsp;'.$bTb, -$row['mm_uid']).'</td>
 						<td class="'.$bgColorClass.'" nowrap>&nbsp;'.t3lib_div::fixed_lgd($this->todos_workflowTitle($todoTypes, $row['type']), 15).'&nbsp;</td>
 						<td class="'.$bgColorClass.'" nowrap>'.$t_dL.'&nbsp;</td>
 						<td class="'.$bgColorClass.'" align=right>'.($row['cruser_id'] == $this->BE_USER->user['uid']?'<input type="hidden" name="DONE['.-$row['mm_uid'].']" value=0><input type="checkbox" name="DONE['.-$row['mm_uid'].']" value="1"'.($row['finished_instance']?" checked":"").'>':'&nbsp;').'</td>
@@ -1061,7 +1061,7 @@ function clickTarget(buttonID,targetUID) {
 				'bgColor-10';
 				$lines[] = '<tr>
 						<td class="'.$bgColorClass.'">'.$this->linkTodos('<img src="'.$this->backPath.'gfx/i/'.$iconName.'" width="18" height="16" hspace=2 border=0 title="'.$LANG->getLL('todos_item').' #'.$row['uid'].', '.htmlspecialchars($LANG->getLL('todos_createdBy').': '.$this->userGroupArray[2][$row['cruser_id']]['username'].' ('.$this->userGroupArray[2][$row['cruser_id']]['realName'].')').'">', $row['uid']).'</td>
-						<td class="'.$bgColorClass.'" nowrap>'.$this->linkTodos($active.$bTb.'&nbsp;'.$this->fixed_lgd($row['title']).'&nbsp;'.$bTb, $row['uid']).'</td>
+						<td class="'.$bgColorClass.'" nowrap>'.$this->linkTodos($active.$bTb.'&nbsp;'.htmlspecialchars($this->fixed_lgd($row['title'])).'&nbsp;'.$bTb, $row['uid']).'</td>
 						<td class="'.$bgColorClass.'" nowrap>&nbsp;'.t3lib_div::fixed_lgd($this->todos_workflowTitle($todoTypes, $row['type']), 15).'&nbsp;</td>
 						<td class="'.$bgColorClass.'" nowrap>'.$t_dL.'&nbsp;</td>
 						<td class="'.$bgColorClass.'" align=right>'.($row['cruser_id'] == $this->BE_USER->user['uid']?'<input type="hidden" name="DONE['.$row['uid'].']" value=0><input type="checkbox" name="DONE['.$row['uid'].']" value="1"'.($row['finished']?" checked":"").'>':'&nbsp;').'</td>
@@ -1127,9 +1127,9 @@ function clickTarget(buttonID,targetUID) {
 					$workflowDef = $this->wfDef->getWorkFlow(substr($wF, 3),t3lib_div::_GET('table'),t3lib_div::_GET('action'));
 					if (is_array($workflowDef) && t3lib_div::_GET('table')) {
 
-						$top .= '<div class="workflow-top"><h1>Start new workflow</h1>';
-						$top .= '<span class="header">'.$LANG->getLL('todos_type').': 											</span><span class="content">' . $workflowDef['title'].'</span><br />';
-						$top .= '<span class="header">Description: </span><span class="content">' . $workflowDef['description'].'</span><br />';
+						$top .= '<div class="workflow-top"><h1>'. $LANG->getLL('todos_new_workflow') .'</h1>';
+						$top .= '<span class="header">'.$LANG->getLL('todos_type').': 											</span><span class="content">' . htmlspecialchars($workflowDef['title']).'</span><br />';
+						$top .= '<span class="header">'. $LANG->getLL('todos_description') .'</span><span class="content">' . htmlspecialchars($workflowDef['description']).'</span><br />';
 						$refRecord = t3lib_BEfunc::getRecord(t3lib_div::_GET('table'),t3lib_div::_GET('uid'));
 						/**
 						 * @todo title-field of record shoud be looked up in TCA
@@ -1264,10 +1264,10 @@ function clickTarget(buttonID,targetUID) {
 	 */
 	function printUserGroupName($uid, $icon = 0) {
 		if ($uid > 0) {
-			return ($icon?t3lib_iconWorks::getIconImage('be_users', t3lib_BEfunc::getRecord('be_users', $uid), $this->backPath, $params = ' align=top'):""). $this->userGroupArray[2][$uid]['username'].($this->userGroupArray[2][$uid]['realName']?" (".$this->userGroupArray[2][$uid]['realName'].")":"");
+			return ($icon?t3lib_iconWorks::getIconImage('be_users', t3lib_BEfunc::getRecord('be_users', $uid), $this->backPath, $params = ' align=top'):""). htmlspecialchars($this->userGroupArray[2][$uid]['username'].($this->userGroupArray[2][$uid]['realName']?" (".$this->userGroupArray[2][$uid]['realName'].")":""));
 		} else {
 			$grRec = t3lib_BEfunc::getRecord('be_groups', abs($uid));
-			return ($icon?t3lib_iconWorks::getIconImage('be_groups', $grRec, $this->backPath, ' align="top"'):''). $grRec['title'];
+			return ($icon?t3lib_iconWorks::getIconImage('be_groups', $grRec, $this->backPath, ' align="top"'):''). htmlspecialchars($grRec['title']);
 		}
 	} //printUserGroupName
 
