@@ -76,7 +76,7 @@ class tx_sysworkflows_definition {
 		return $rows;
 	}
 
-	function getWorkFlow($uid,$checkTable='',$checkAction='',$checkUser='') {
+	function getWorkFlow($uid,$checkTable='',$checkAction='',$checkUser=false) {
 		$res = $this->queryUserWorkFlows($checkTable,'sys_workflows.*',$uid,$checkAction,$checkUser);
 		return $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
 	}
@@ -146,7 +146,7 @@ class tx_sysworkflows_definition {
 	  *
 	  */
 	function getTargetUsers($wfUid) {
-		$workflowDef = $this->getWorkFlow($wfUid,'','','edit');
+		$workflowDef = $this->getWorkFlow($wfUid,'','edit');
 		$grL = implode(',', t3lib_div::intExplode(',', $workflowDef['target_groups']));
 		$wf_groupArray = t3lib_BEfunc::getGroupNames('title,uid', "AND uid IN (".($grL?$grL:0).')');
 		$wf_userArray = $this->pObj->blindUserNames($this->pObj->userGroupArray[2], array_keys($wf_groupArray));
@@ -203,6 +203,24 @@ class tx_sysworkflows_definition {
 		global $LANG;
 		$statusLabels = array();
 		switch ($state) {
+			case 'initiated':
+			if ($action=='delete') {
+				return $this->getTransitions('reviewing',$wfUid);
+			}
+			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
+			$statusLabels['begin']['label'] = htmlspecialchars($LANG->getLL('todos_status_begin'));
+			$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
+			$statusLabels['passon']['targets'] = $this->getTargetUsers($wfUid);
+			$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
+			break;
+
+			case 'rejected':
+			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
+			$statusLabels['assign']['label'] = htmlspecialchars($LANG->getLL('todos_status_assign'));
+			$statusLabels['assign']['targets'] = $this->getTargetUsers($wfUid);
+
+			break;
+
 			case 'started':
 			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
 			$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
@@ -234,15 +252,6 @@ class tx_sysworkflows_definition {
 			break;
 
 			default:
-			if ($action=='delete') {
-				return $this->getTransitions('reviewing',$wfUid);
-			}
-			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
-			$statusLabels['begin']['label'] = htmlspecialchars($LANG->getLL('todos_status_begin'));
-			$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
-			$statusLabels['passon']['targets'] = $this->getTargetUsers($wfUid);
-			$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
-			break;
 		}
 		/*
 		$statusLabels['comment'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
@@ -321,6 +330,18 @@ class tx_sysworkflows_definition {
 		}
 	}
 
+
+	/**
+	 * Ends _the editing_ of a workflow and sends it to review
+	 *
+	 * @param unknown_type $iRow
+	 * @param unknown_type $uid
+	 * @param unknown_type $input
+	 * @param unknown_type $RD_URL
+	 * @param unknown_type $field_values
+	 * @return unknown
+	 */
+
 	function exec_end($iRow,$uid,$input,&$RD_URL,$field_values) {
 		$workflowRecord = $this->getWorkflow($uid,$iRow['tablename'],$iRow['action'],'edit');
 		// todos_status_end, pass on to reviewer if found (may select reviewer in form), else back to admin
@@ -340,8 +361,8 @@ class tx_sysworkflows_definition {
 				if ($u_id == $input['newTarget']) {
 					$this->pObj->wfExe->addvalue('uid_foreign',$u_id);
 					$this->pObj->wfExe->addvalue('state','reviewing');
-					$this->pObj->wfExe->addvalue('prev_user',$iRow['uid_foreign']);
-					$this->pObj->wfExe->addvalue('prev_state',$iRow['state']);
+					$this->pObj->wfExe->addvalue('reject_user',$iRow['uid_foreign']);
+					$this->pObj->wfExe->addvalue('reject_state',$iRow['state']);
 					return $field_values;
 				}
 			}
@@ -356,29 +377,39 @@ class tx_sysworkflows_definition {
 		return null;
 	}
 
+	function exec_assign($iRow,$uid,$input,&$RD_URL,$field_values) {
+		if (intval($input['newTarget'])) {
+			$this->pObj->wfExe->addvalue('uid_foreign',$input['newTarget']);
+			$this->pObj->wfExe->addvalue('state',$iRow['reject_state']);
+			$this->pObj->wfExe->addvalue('reject_user',$iRow['uid_foreign']);
+			$this->pObj->wfExe->addvalue('reject_state','rejected');
+		}
+	}
+
+
 	function exec_passon($iRow,$uid,$input,&$RD_URL,$field_values) {
 		// todos_status_passOn, just pass on to selected target
 		if (intval($input['newTarget'])) {
 			$this->pObj->wfExe->addvalue('uid_foreign',$input['newTarget']);
-			$this->pObj->wfExe->addvalue('prev_user',$iRow['uid_foreign']);
-			$this->pObj->wfExe->addvalue('prev_state',$iRow['state']);
+			$this->pObj->wfExe->addvalue('reject_user',$iRow['uid_foreign']);
+			$this->pObj->wfExe->addvalue('reject_state',$iRow['state']);
 		}
 	}
 
 	function exec_reject($iRow,$uid,$input,&$RD_URL,$field_values) {
 		// todos_status_reject, target = sender user
-		$this->pObj->wfExe->addvalue('uid_foreign',intval($iRow['prev_user'])?$iRow['prev_user']:$iRow['cruser_id']);
-		$this->pObj->wfExe->addvalue('state',$iRow['prev_state']);
-		$this->pObj->wfExe->addvalue('prev_user',$iRow['uid_foreign']);
-		$this->pObj->wfExe->addvalue('prev_state',$iRow['state']);
+		$this->pObj->wfExe->addvalue('uid_foreign',intval($iRow['reject_user'])?$iRow['reject_user']:$iRow['cruser_id']);
+		$this->pObj->wfExe->addvalue('state',$iRow['reject_state']);
+		$this->pObj->wfExe->addvalue('reject_user',$iRow['uid_foreign']);
+		$this->pObj->wfExe->addvalue('reject_state',$iRow['state']);
 	}
 
 	function exec_review($iRow,$uid,$input,&$RD_URL,$field_values) {
 		$workflowRecord = $this->getWorkflow($uid,$iRow['tablename'],$iRow['action'],'review');
 		// todos_status_reject, target = sender user
 		$this->pObj->wfExe->addvalue('state','reviewed');
-		$this->pObj->wfExe->addvalue('prev_user',$iRow['uid_foreign']);
-		$this->pObj->wfExe->addvalue('prev_state',$iRow['state']);
+		$this->pObj->wfExe->addvalue('reject_user',$iRow['uid_foreign']);
+		$this->pObj->wfExe->addvalue('reject_state',$iRow['state']);
 
 		// todos_status_end, pass on to reviewer if found (may select publisher in form), else back to admin
 		$first = 0;
@@ -421,8 +452,8 @@ class tx_sysworkflows_definition {
 			$this->pObj->wfExe->addvalue('uid_foreign',$iRow['cruser_id']);
 			$this->pObj->wfExe->addvalue('finalized',$this->pObj->wfExe->finalizeWorkflow($workflowRecord, $iRow) ? 1 :	0);
 			$this->pObj->wfExe->addvalue('state','published');
-			$this->pObj->wfExe->addvalue('prev_user',$iRow['uid_foreign']);
-			$this->pObj->wfExe->addvalue('prev_state',$iRow['state']);
+			$this->pObj->wfExe->addvalue('reject_user',$iRow['uid_foreign']);
+			$this->pObj->wfExe->addvalue('reject_state',$iRow['state']);
 
 			return $field_values;
 		} else {
@@ -438,11 +469,11 @@ class tx_sysworkflows_definition {
 	function exec_newinstance() {
 		if ($this->BE_USER->user['uid'] == $row['cruser_id']) {
 			// Must own
-			$this->logData['uid_foreign'] = $data['sys_todos_users_mm'][$key]['status']['newTarget'];
+			$this->logData['uid_ign'] = $data['sys_todos_users_mm'][$key]['status']['newTarget'];
 
 			$field_values = array(
 			'uid_local' => $row['uid_local'],
-			'uid_forei	gn' => $this->logData['uid_foreign'],
+			'uid_foreign' => $this->logData['uid_foreign'],
 			'status' => 102,
 			'tstamp' => time(),
 			'status_log' => serialize(array($this->logData))

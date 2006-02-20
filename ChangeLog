@@ -1,3 +1,9 @@
+2006-02-20  Christian Jul Jensen  <christian@jul.net>
+
+	* Added TemplaVoila support
+	* Fixed reject functionality
+	* Fixed access check for viewing tasks
+
 2006-02-18  Mads Chr. Olesen  <shiyee@shiyee.dk>
 
 	* Localized more strings

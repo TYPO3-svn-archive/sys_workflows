@@ -30,7 +30,7 @@
  */
 
 include_once(t3lib_extMgm::extPath('gabriel','class.tx_gabriel_event.php'));
-include_once(PATH_site.'tslib/class.tslib_content.php');
+include_once(t3lib_extMgm::extPath('cms','tslib/class.tslib_content.php'));
 
 
 

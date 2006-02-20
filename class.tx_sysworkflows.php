@@ -32,6 +32,7 @@
 
 require_once (PATH_t3lib.'class.t3lib_tceforms.php');
 require_once (PATH_t3lib.'class.t3lib_tcemain.php');
+require_once (PATH_t3lib.'class.t3lib_loadmodules.php');
 
 class tx_sysworkflows extends mod_user_task {
 	var $todoTypesCache = array();
@@ -62,6 +63,8 @@ class tx_sysworkflows extends mod_user_task {
 	function main() {
 		$this->workflowExtIsLoaded = t3lib_extMgm::isLoaded('sys_workflows');
 		return $this->renderTasks();
+
+
 	} //main
 
 	/**
@@ -236,20 +239,25 @@ class tx_sysworkflows extends mod_user_task {
 				return $this->getCSS().$this->todos_createForm($todoTypes);
 			} else {
 
-				$row = $this->getStateRecord($tUid);
-				$menuItems[] = array(
-				'label' => $LANG->getLL('todos_tabs_description'),
-				'content' => $this->getDescription($row,$RD_URL).$this->getUpdateForm($tUid, $countOfInstances).$this->urlInIframe($RD_URL,1)
-				);
-				//				$menuItems[] = array(
-				//				'label' => 'Action',
-				//				'content' => $this->getUpdateForm($tUid, $countOfInstances)
-				//				);
-				$menuItems[] = array(
-				'label' => $LANG->getLL('todos_tabs_history'),
-				'content' => $this->getStatus($row,$tUid)
-				);
-				return $this->getCSS().$this->pObj->doc->getDynTabMenu($menuItems,'tx_sysworkflows',0);
+				$row = $this->getStateRecord($tUid,true);
+				if(is_array($row)) {
+					$menuItems[] = array(
+					'label' => $LANG->getLL('todos_tabs_description'),
+					'content' => $this->getDescription($row,$RD_URL).$this->getUpdateForm($tUid, $countOfInstances).$this->urlInIframe($RD_URL,1)
+					);
+					//				$menuItems[] = array(
+					//				'label' => 'Action',
+					//				'content' => $this->getUpdateForm($tUid, $countOfInstances)
+					//				);
+					$menuItems[] = array(
+					'label' => $LANG->getLL('todos_tabs_history'),
+					'content' => $this->getStatus($row,$tUid)
+					);
+$content = $this->getCSS().$this->pObj->doc->getDynTabMenu($menuItems,'tx_sysworkflows',0);
+				} else {
+					$content .= '';
+				}
+				return $content;
 
 			}
 		}
@@ -414,6 +422,8 @@ class tx_sysworkflows extends mod_user_task {
 						$this->createNotification($code,$data['sys_todos_users_mm'][$key]['status']['newTarget'],$key);
 					} elseif(method_exists ($this,$code)) {
 						$this->$code();
+					} else {
+						die('Fatal error: no such action!');
 					}
 					if($data['sys_todos_users_mm'][$key]['observeWorkflow']) {
 						$this->setUserAsObserver($key);
@@ -464,6 +474,9 @@ class tx_sysworkflows extends mod_user_task {
 					'action' => $data['sys_todos'][$key]['action'],
 					'tablename' => $data['sys_todos'][$key]['table'],
 					'idref' => $data['sys_todos'][$key]['uid'],
+					'state' => 'initiated',
+					'reject_user' => $this->BE_USER->user['uid'],
+					'reject_state' => 'rejected'
 					);
 					//if the action is deletion, there is no begin step, as there is nothing to edit.
 					if($data['sys_todos'][$key]['action']=='delete' && $this->loadExecutor()) {
@@ -661,13 +674,13 @@ class tx_sysworkflows extends mod_user_task {
 
 
 
-	function getStateRecord($tUid) {
+	function getStateRecord($tUid,$checkUser=false) {
 		$res = $GLOBALS['TYPO3_DB']->exec_SELECT_mm_query(
 		'*',
 		'sys_todos',
 		"sys_todos_users_mm",
 		'',
-		"AND NOT sys_todos_users_mm.deleted AND NOT sys_todos.deleted".($tUid < 0?" AND sys_todos_users_mm.mm_uid=":" AND sys_todos.uid=").abs($tUid)
+		"AND NOT sys_todos_users_mm.deleted AND NOT sys_todos.deleted".($tUid < 0?" AND sys_todos_users_mm.mm_uid=":" AND sys_todos.uid=").abs($tUid).($checkUser?' AND sys_todos_users_mm.uid_foreign='.$this->BE_USER->user['uid']:'')
 		);
 		return $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
 	}
@@ -1234,14 +1247,34 @@ function clickTarget(buttonID,targetUID) {
 	 * @return [type]  ...
 	 */
 	function getEditRedirectUrlForReference($recRef,$new=false) {
+		$loadModules = t3lib_div::makeInstance('t3lib_loadModules');
+		$loadModules->load($GLOBALS['TBE_MODULES']);
+
+		$newPageModule = trim($GLOBALS['BE_USER']->getTSConfigVal('options.overridePageModule'));
+		if($newPageModule) {
+			$pageModuleParts = explode('_',$newPageModule);
+			if (is_array($loadModules->modules[$pageModuleParts[0]]['sub'][$pageModuleParts[1]])) {
+				$pageModuleURL = $loadModules->modules[$pageModuleParts[0]]['sub'][$pageModuleParts[1]]['script'];
+			}
+
+		}
+		if(!$pageModuleURL) {
+			if (is_array($loadModules->modules['web']['sub']['layout'])) {
+				$pageModuleURL = $loadModules->modules['web']['sub']['layout']['script'];
+			} else {
+				die('Fatal error: No access to pagemodule!');
+			}
+		}
+
+
 		$parts = explode(':', $recRef);
 		if ($parts[0] == 'pages') {
 			if($new) {
-				$outUrl = $this->backPath.'sysext/cms/layout/db_layout.php?id='.$parts[1].'&SET[function]=0&edit_record='.rawurlencode($parts[0].':'.$parts[1]);
+				$outUrl = $this->backPath.$pageModuleURL.'?id='.$parts[1].'&SET[function]=0&edit_record='.rawurlencode($parts[0].':'.$parts[1]);
 				//			TODO: Remove line below
 				#.'&returnUrl='.rawurlencode(t3lib_div::getIndpEnv('REQUEST_URI'));
 			} else {
-				$outUrl = $this->backPath.'sysext/cms/layout/db_layout.php?id='.$parts[1].'&SET[function]=1'."&returnUrl=".rawurlencode(t3lib_div::getIndpEnv('REQUEST_URI'));
+				$outUrl = $this->backPath.$pageModuleURL.'?id='.$parts[1].'&SET[function]=1'."&returnUrl=".rawurlencode(t3lib_div::getIndpEnv('REQUEST_URI'));
 			}
 		} else {
 			$outUrl = $this->backPath.'alt_doc.php?returnUrl='.rawurlencode(t3lib_div::getIndpEnv('REQUEST_URI')).'&edit['.$parts[0].']['.$parts[1].']=edit';
