@@ -55,6 +55,9 @@ class tx_sysworkflows_executor {
 	function createNewVersionOfRecord($table,$uid,$label='workflow') {
 		$cmd[$table][$uid]['version']['action'] = 'new';
 		$cmd[$table][$uid]['version']['label'] = $label;
+		if($table=='pages') {
+			$cmd[$table][$uid]['version']['treeLevels'] = 0;
+		}
 
 		$this->callTCE($dataArr, $cmd);
 		$recId = $this->tce->copyMappingArray[$table][$uid];
@@ -169,25 +172,25 @@ class tx_sysworkflows_executor {
 		global $TCA;
 		switch($relRecord['action']) {
 			case 'new inside':
-			if('pages'==$relRecord['tablename']) {
-				return $this->createNewRecord($relRecord['tablename'],$relRecord['idref']);
-			} else {
-				die('Error in: '.__FILE__.','.__LINE__.debug_backtrace());
-			}
-			break;
+				if('pages'==$relRecord['tablename']) {
+					return $this->createNewRecord($relRecord['tablename'],$relRecord['idref']);
+				} else {
+					die('Error in: '.__FILE__.','.__LINE__.debug_backtrace());
+				}
+				break;
 			case 'new after':
-			return $this->createNewRecord($relRecord['tablename'],-1*$relRecord['idref']);
-			break;
+				return $this->createNewRecord($relRecord['tablename'],-1*$relRecord['idref']);
+				break;
 			case 'version':
-			return $this->createNewVersionOfRecord($relRecord['tablename'], $relRecord['idref']);
-			break;
+				return $this->createNewVersionOfRecord($relRecord['tablename'], $relRecord['idref']);
+				break;
 			case 'delete':
-			return $relRecord['tablename'].':'.$relRecord['idref'];
-			break;
+				return $relRecord['tablename'].':'.$relRecord['idref'];
+				break;
 			case 'move':
-			break;
+				break;
 			default:
-			debug('Error: record did not define any action',__FUNCTION__,__LINE__,__FILE__);
+				debug('Error: record did not define any action',__FUNCTION__,__LINE__,__FILE__);
 		}
 	} //beginWorkflow
 

@@ -59,7 +59,7 @@ class tx_sysworkflows_definition {
 	}
 
 	function getUserWorkFlows($table) {
-		$res = $this->queryUserWorkFlows($table,'uid,title,tablename,tablename_ver,tablename_del,tablename_move');
+		$res = $this->queryUserWorkFlows($table,'sys_workflows.uid,sys_workflows.title,sys_workflows.tablename,sys_workflows.tablename_ver,sys_workflows.tablename_del,sys_workflows.tablename_move');
 		while($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
 			$tmpRow['uid'] = $row['uid'];
 			$tmpRow['title'] = $row['title'];
@@ -106,9 +106,9 @@ class tx_sysworkflows_definition {
 		if(!$checkUser || $GLOBALS['BE_USER']->isAdmin()) {
 			return $GLOBALS['TYPO3_DB']->exec_SELECTquery($fields, 'sys_workflows', 'sys_workflows.pid=0 AND sys_workflows.hidden=0'.$extraClauses, '', 'sys_workflows.title');
 		} else {
-			$checkFields = array('create' => 'allowed_groups', 'edit' => 'target_groups', 'review' => 'sys_workflows_rvuser_mm', 'publish' => 'sys_workflows_pubuser_mm');
+			$checkFields = array('create' => 'sys_workflows_algr_mm', 'edit' => 'target_groups', 'review' => 'sys_workflows_rvuser_mm', 'publish' => 'sys_workflows_pubuser_mm');
 			$checkField = $checkFields[$checkUser];
-			if(substr($checkField,-6)=='groups') {
+			if(substr($checkField,-3)!='_mm') {
 				$groups = explode(',',$GLOBALS['BE_USER']->groupList?$GLOBALS['BE_USER']->groupList:0);
 				foreach($groups as $group) {
 					$access_clause[] = $GLOBALS['TYPO3_DB']->listQuery($checkField,$group,'sys_workflows');
@@ -122,14 +122,21 @@ class tx_sysworkflows_definition {
 				);
 
 			} else {
+				if($checkUser=='create') {
+					$groups = $GLOBALS['BE_USER']->groupList?$GLOBALS['BE_USER']->groupList:0;
+					$access_clause = 'uid_foreign IN ('.$groups.')';
+				} else {
+					$access_clause = 'be_users.uid='.$GLOBALS['BE_USER']->user['uid'];
+				}
+				
 				#					$access_clause = $GLOBALS['TYPO3_DB']->listQuery($checkField,$GLOBALS['BE_USER']->user['uid'],'sys_workflows');
 				return $GLOBALS['TYPO3_DB']->exec_SELECT_mm_query(
 				$fields,
 				'sys_workflows',
 				$checkField,
 				'be_users',
-				' AND be_users.uid='.$GLOBALS['BE_USER']->user['uid'].' AND sys_workflows.pid=0	AND sys_workflows.hidden=0'.$extraClauses,
-				'',
+				' AND '.$access_clause.' AND sys_workflows.pid=0	AND sys_workflows.hidden=0'.$extraClauses,
+				'sys_workflows.uid',
 				'sys_workflows.title'
 				);
 
@@ -204,52 +211,52 @@ class tx_sysworkflows_definition {
 		$statusLabels = array();
 		switch ($state) {
 			case 'initiated':
-			if ($action=='delete') {
-				return $this->getTransitions('reviewing',$wfUid);
-			}
-			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
-			$statusLabels['begin']['label'] = htmlspecialchars($LANG->getLL('todos_status_begin'));
-			$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
-			$statusLabels['passon']['targets'] = $this->getTargetUsers($wfUid);
-			$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
-			break;
+				if ($action=='delete') {
+					return $this->getTransitions('reviewing',$wfUid);
+				}
+				$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
+				$statusLabels['begin']['label'] = htmlspecialchars($LANG->getLL('todos_status_begin'));
+				$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
+				$statusLabels['passon']['targets'] = $this->getTargetUsers($wfUid);
+				$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
+				break;
 
 			case 'rejected':
-			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
-			$statusLabels['assign']['label'] = htmlspecialchars($LANG->getLL('todos_status_assign'));
-			$statusLabels['assign']['targets'] = $this->getTargetUsers($wfUid);
+				$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
+				$statusLabels['assign']['label'] = htmlspecialchars($LANG->getLL('todos_status_assign'));
+				$statusLabels['assign']['targets'] = $this->getTargetUsers($wfUid);
 
-			break;
+				break;
 
 			case 'started':
-			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
-			$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
-			$statusLabels['passon']['targets'] = $this->getTargetUsers($wfUid);
-			$statusLabels['end']['label'] = htmlspecialchars($LANG->getLL('todos_status_end'));
-			$statusLabels['end']['targets'] = $this->getReviewUsers($wfUid);
-			$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
-			break;
+				$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
+				$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
+				$statusLabels['passon']['targets'] = $this->getTargetUsers($wfUid);
+				$statusLabels['end']['label'] = htmlspecialchars($LANG->getLL('todos_status_end'));
+				$statusLabels['end']['targets'] = $this->getReviewUsers($wfUid);
+				$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
+				break;
 
 			case 'reviewing':
-			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
-			$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
-			$statusLabels['passon']['targets'] = $this->getReviewUsers($wfUid);
-			$statusLabels['review']['label'] = htmlspecialchars($LANG->getLL('todos_status_review'));
-			$statusLabels['review']['targets'] = $this->getPublishingUsers($wfUid);
-			$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
-			break;
+				$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
+				$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
+				$statusLabels['passon']['targets'] = $this->getReviewUsers($wfUid);
+				$statusLabels['review']['label'] = htmlspecialchars($LANG->getLL('todos_status_review'));
+				$statusLabels['review']['targets'] = $this->getPublishingUsers($wfUid);
+				$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
+				break;
 
 			case 'reviewed':
-			$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
-			$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
-			$statusLabels['passon']['targets'] = $this->getPublishingUsers($wfUid);
-			$statusLabels['finalize']['label'] = htmlspecialchars($LANG->getLL('todos_status_finalize'));
-			$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
-			break;
+				$statusLabels['comment']['label'] = htmlspecialchars($LANG->getLL('todos_status_comment'));
+				$statusLabels['passon']['label'] = htmlspecialchars($LANG->getLL('todos_status_passOn'));
+				$statusLabels['passon']['targets'] = $this->getPublishingUsers($wfUid);
+				$statusLabels['finalize']['label'] = htmlspecialchars($LANG->getLL('todos_status_finalize'));
+				$statusLabels['reject']['label'] = htmlspecialchars($LANG->getLL('todos_status_reject'));
+				break;
 
 			case 'published':
 
-			break;
+				break;
 
 			default:
 		}
@@ -271,11 +278,11 @@ class tx_sysworkflows_definition {
 				//TODO: label keys and codes should be synchronized, so they cab be used directly, but for now, this will do
 				switch ($key) {
 					case 'end':
-					$statusLabels += $this->getTransitions('reviewing',$wfUid);
-					break;
+						$statusLabels += $this->getTransitions('reviewing',$wfUid);
+						break;
 					case 'review':
-					$statusLabels += $this->getTransitions('reviewed',$wfUid);
-					break;
+						$statusLabels += $this->getTransitions('reviewed',$wfUid);
+						break;
 				}
 				// remove the option if the only possible target is the user itself
 				// else just remove the user from the list of targets
